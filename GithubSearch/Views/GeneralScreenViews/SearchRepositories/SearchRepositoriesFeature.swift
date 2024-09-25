@@ -22,35 +22,37 @@ final class SearchRepositoriesFeature: ObservableObject {
     
     private let gitHubService = GitHubService()
     
-    private var debounceTimer: Task<Void, Error>?
+    private var activeTask: Task<Void, Error>?
     private var bag: Set<AnyCancellable> = .init()
     
     init() {
-        $input.sink { [weak self] value in
-            self?.runSearch(query: value)
-        }
-        .store(in: &bag)
+        $input
+            .removeDuplicates()
+            .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+            .sink { [weak self] value in
+                self?.runSearch(query: value)
+            }
+            .store(in: &bag)
     }
 
     private func runSearch(query: String) {
         guard !query.isEmpty else {
             state = .idle
-            debounceTimer?.cancel()
+            activeTask?.cancel()
             return
         }
-        debounceTimer?.cancel()
-        debounceTimer = Task {
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1sec
-            if Task.isCancelled {
-                return
-            }
+        state = .loading
+        activeTask?.cancel()
+        activeTask = Task {
             await performSearch(query: query)
         }
     }
     
     private func performSearch(query: String) async {
-        state = .loading
         do {
+            if Task.isCancelled {
+                return
+            }
             let repositories = try await gitHubService.searchRepositories(query: query)
             state = .loaded(repositories)
         } catch {

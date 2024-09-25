@@ -23,7 +23,9 @@ struct SearchRepositoriesView: View {
                     Text("Enter query to start searching")
                 case .loaded(let repositories):
                     List(repositories) { repository in
-                        RepositoryRowView(repository: repository)
+                        NavigationLink(destination: RepositoryDetailView(repository: repository)) {
+                            RepositoryRowView(repository: repository)
+                        }
                     }
                 case .loading:
                     ProgressView("Searching...")
